@@ -37,20 +37,44 @@ export function renderCellCheckboxes({
   idx
 }: RenderCellCheckboxesOptions): number {
   const text = cell.textContent || '';
-  const actions = renderCellCheckboxesPure(text);
+
+
+  // Skip cells without checkbox patterns - preserve them as-is
+  if (!/\[( |x)\]/.test(text)) {
+    return idx;
+  }
+
+  // Collect all nodes and process them while preserving HTML elements
+  const nodesToProcess: Node[] = Array.from(cell.childNodes);
+
+  // Clear the cell
   while (cell.firstChild) cell.removeChild(cell.firstChild);
+
   let localIdx = 0;
-  actions.forEach(action => {
-    if (action.type === 'span') {
-      createSpanElement(cell, action.text!);
-    } else if (action.type === 'checkbox') {
-      const globalIdx = idx + localIdx;
-      const box = createCheckboxElement(cell, action.checked!, () => {
-        handleCheckboxChange({ box, plugin, file, lineNum, idx: globalIdx });
+
+  nodesToProcess.forEach(node => {
+    if (node.nodeType === Node.TEXT_NODE) {
+      // Process text nodes for checkbox patterns
+      const text = node.textContent || '';
+      const actions = renderCellCheckboxesPure(text);
+
+      actions.forEach(action => {
+        if (action.type === 'span') {
+          createSpanElement(cell, action.text!);
+        } else if (action.type === 'checkbox') {
+          const globalIdx = idx + localIdx;
+          const box = createCheckboxElement(cell, action.checked!, () => {
+            handleCheckboxChange({ box, plugin, file, lineNum, idx: globalIdx });
+          });
+          localIdx++;
+        }
       });
-      localIdx++;
+    } else if (node.nodeType === Node.ELEMENT_NODE) {
+      // Preserve HTML elements (like anchor tags for internal links)
+      cell.appendChild(node.cloneNode(true));
     }
   });
+
   return idx + localIdx;
 }
 
